@@ -15,21 +15,26 @@ console.log("✅ Models loaded");
 // Load and chunk resume
 const response = await fetch('resume.txt');
 const resumeText = await response.text();
-const resumeChunks = resumeText.match(/[^\\.?!]+[\\.?!]+/g) || [resumeText]; // sentence-based chunks
+const resumeChunks = resumeText.match(/[^\.?!]+[\.?!]+/g) || [resumeText];
 
 // Embed chunks
 const chunkEmbeddings = [];
 for (let chunk of resumeChunks) {
-  const embedding = await embedder(chunk, {
+  const embeddingOutput = await embedder(chunk, {
     pooling: 'mean',
     normalize: true
   });
-  chunkEmbeddings.push(embedding); // fixed: embedder now returns final array
+  const embedding = Array.isArray(embeddingOutput) ? embeddingOutput[0] : embeddingOutput;
+  chunkEmbeddings.push(embedding);
 }
 console.log("✅ Chunks embedded:", chunkEmbeddings.length);
 
 // Cosine similarity
 function cosineSimilarity(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    console.error('Invalid vectors passed to cosineSimilarity');
+    return 0;
+  }
   const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
   const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
   const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
@@ -50,7 +55,7 @@ const memory = [];
 
 function updateMemory(userQ, botA) {
   memory.push({ userQ, botA });
-  if (memory.length > 3) memory.shift(); // Keep last 3
+  if (memory.length > 3) memory.shift();
 }
 
 function buildPrompt(question, contextChunks) {
@@ -68,7 +73,8 @@ async function handleQuestion() {
 
   answerBox.textContent = 'Thinking...';
 
-  const qEmbedding = await embedder(question, { pooling: 'mean', normalize: true });
+  const qEmbeddingOutput = await embedder(question, { pooling: 'mean', normalize: true });
+  const qEmbedding = Array.isArray(qEmbeddingOutput) ? qEmbeddingOutput[0] : qEmbeddingOutput;
   const relevantChunks = findRelevantChunks(qEmbedding);
   const prompt = buildPrompt(question, relevantChunks);
 
