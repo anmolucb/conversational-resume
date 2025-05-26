@@ -35,7 +35,8 @@ async function loadResumeChunks() {
   resumeChunks = raw.split(/\[Chunk\]/).map(c => c.trim()).filter(Boolean);
   for (let chunk of resumeChunks) {
     const embedding = await embedder(chunk);
-    chunkEmbeddings.push(embedding.data[0]);
+    chunkEmbeddings.push(embedding.data); // If it returns { data: [vector] }
+
   }
 }
 
