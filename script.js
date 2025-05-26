@@ -115,45 +115,73 @@ function cosineSimilarity(a, b) {
 // Fallback function to extract answers directly from text when LLM fails
 function extractDirectAnswer(question, chunks) {
   const lowerQuestion = question.toLowerCase();
-  const combinedText = chunks.join(' ').toLowerCase();
+  const combinedText = chunks.join(' ');
+  
+  console.log('Extracting direct answer for:', question);
+  console.log('From chunks:', chunks);
   
   // Simple pattern matching for common questions
-  if (lowerQuestion.includes('where') && (lowerQuestion.includes('work') || lowerQuestion.includes('job'))) {
+  if (lowerQuestion.includes('where') && (lowerQuestion.includes('work') || lowerQuestion.includes('job') || lowerQuestion.includes('working'))) {
     // Look for company names or work locations
     const workPatterns = [
-      /works? at ([^.!?]+)/i,
-      /employed by ([^.!?]+)/i,
-      /company[:\s]+([^.!?]+)/i,
-      /organization[:\s]+([^.!?]+)/i
+      /(?:works?|working|employed)\s+(?:at|for|with)\s+([^.!?\n,]+)/gi,
+      /(?:company|organization|employer)[:\s]+([^.!?\n,]+)/gi,
+      /(?:position|role)\s+at\s+([^.!?\n,]+)/gi,
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*)\s+(?:company|corp|inc|ltd)/gi
     ];
     
     for (const pattern of workPatterns) {
-      const match = chunks.join(' ').match(pattern);
-      if (match && match[1]) {
-        return `Anmol works at ${match[1].trim()}.`;
+      const matches = [...combinedText.matchAll(pattern)];
+      if (matches.length > 0) {
+        const company = matches[0][1].trim();
+        return `Based on the resume, Anmol works at ${company}.`;
+      }
+    }
+    
+    // Look for any proper nouns that might be company names
+    const sentences = combinedText.split(/[.!?]+/);
+    for (const sentence of sentences) {
+      if (sentence.toLowerCase().includes('work') || sentence.toLowerCase().includes('employ')) {
+        // Extract potential company names (capitalized words)
+        const capitalizedWords = sentence.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\b/g);
+        if (capitalizedWords && capitalizedWords.length > 0) {
+          return `Based on the resume information: ${sentence.trim()}.`;
+        }
       }
     }
   }
   
-  if (lowerQuestion.includes('what') && lowerQuestion.includes('do')) {
+  if (lowerQuestion.includes('what') && (lowerQuestion.includes('do') || lowerQuestion.includes('job') || lowerQuestion.includes('role'))) {
     // Look for job titles or roles
     const rolePatterns = [
-      /position[:\s]+([^.!?]+)/i,
-      /role[:\s]+([^.!?]+)/i,
-      /title[:\s]+([^.!?]+)/i,
-      /job[:\s]+([^.!?]+)/i
+      /(?:position|role|title|job)[:\s]+([^.!?\n,]+)/gi,
+      /(?:works?\s+as|employed\s+as)\s+([^.!?\n,]+)/gi,
+      /([A-Z][a-z]+\s+(?:Engineer|Developer|Manager|Analyst|Designer|Consultant))/gi
     ];
     
     for (const pattern of rolePatterns) {
-      const match = chunks.join(' ').match(pattern);
-      if (match && match[1]) {
-        return `Anmol's role is ${match[1].trim()}.`;
+      const matches = [...combinedText.matchAll(pattern)];
+      if (matches.length > 0) {
+        const role = matches[0][1].trim();
+        return `Based on the resume, Anmol's role is ${role}.`;
       }
     }
   }
   
-  // Return the most relevant chunk if no specific pattern matches
-  return chunks[0] || "I couldn't find specific information about that in the resume.";
+  if (lowerQuestion.includes('experience') || lowerQuestion.includes('skill')) {
+    // Return most relevant chunk for experience/skills questions
+    const mostRelevant = chunks[0];
+    if (mostRelevant && mostRelevant.length > 10) {
+      return `Based on the resume: ${mostRelevant.trim()}`;
+    }
+  }
+  
+  // If we have relevant chunks but no specific patterns, return the first one
+  if (chunks.length > 0 && chunks[0].length > 10) {
+    return `From the resume: ${chunks[0].trim()}`;
+  }
+  
+  return "I couldn't find specific information about that in the resume.";
 }
 
 // Retrieve top-K relevant chunks
@@ -244,14 +272,22 @@ async function handleQuestion() {
       output = output.substring(promptEnd + 'Complete answer:'.length).trim();
     }
     
-    // If output is still incomplete or just repeating, try template-based approach
-    if (output.length < 10 || output.toLowerCase().includes('the company is a')) {
+    // Check if LLM output is coherent and relevant
+    const isCoherent = output.length > 5 && 
+                      !output.includes('Google+') && 
+                      !output.includes('research with some very interesting') &&
+                      !output.toLowerCase().startsWith('the company is a') &&
+                      !output.includes('question will not have been answered');
+    
+    if (!isCoherent) {
+      console.log('LLM output appears incoherent, using direct extraction');
       // Extract relevant information directly from chunks
       output = extractDirectAnswer(question, relevantChunks);
+    } else {
+      // Clean up coherent LLM output
+      output = output.split('\n')[0].trim();
     }
     
-    // Clean up
-    output = output.split('\n')[0].trim();
     if (output.length === 0) {
       output = "I couldn't find specific information about that in the resume.";
     }
