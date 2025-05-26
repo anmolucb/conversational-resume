@@ -18,29 +18,68 @@ const resumeChunks = resumeText.match(/[^\.?!]+[\.?!]+/g) || [resumeText];
 
 // Helper function to extract embeddings properly
 function extractEmbedding(embeddingOutput) {
-  // Handle different output formats from the embedder
-  if (embeddingOutput && embeddingOutput.data) {
-    return Array.from(embeddingOutput.data);
-  } else if (Array.isArray(embeddingOutput)) {
-    return embeddingOutput.flat(Infinity);
-  } else if (embeddingOutput && typeof embeddingOutput.tolist === 'function') {
-    return embeddingOutput.tolist().flat(Infinity);
-  } else {
-    console.error('Unexpected embedding format:', embeddingOutput);
-    return [];
+  console.log('Raw embedding output:', embeddingOutput);
+  console.log('Type:', typeof embeddingOutput);
+  console.log('Is array:', Array.isArray(embeddingOutput));
+  
+  // Handle Xenova transformer tensor output
+  if (embeddingOutput && typeof embeddingOutput === 'object') {
+    // Check if it's a tensor with data property
+    if (embeddingOutput.data) {
+      console.log('Found .data property, length:', embeddingOutput.data.length);
+      return Array.from(embeddingOutput.data);
+    }
+    // Check if it has tolist method
+    if (typeof embeddingOutput.tolist === 'function') {
+      const result = embeddingOutput.tolist();
+      console.log('tolist() result:', result);
+      return Array.isArray(result) ? result.flat(Infinity) : [result];
+    }
+    // Check if it's already an array-like object
+    if (embeddingOutput.length !== undefined) {
+      console.log('Array-like object, length:', embeddingOutput.length);
+      return Array.from(embeddingOutput);
+    }
+    // Check for nested structure
+    if (embeddingOutput[0] && Array.isArray(embeddingOutput[0])) {
+      console.log('Nested array structure detected');
+      return embeddingOutput[0];
+    }
   }
+  
+  // Handle direct array
+  if (Array.isArray(embeddingOutput)) {
+    console.log('Direct array, flattening');
+    return embeddingOutput.flat(Infinity);
+  }
+  
+  console.error('Could not extract embedding from:', embeddingOutput);
+  return [];
 }
 
 // Embed chunks
 const chunkEmbeddings = [];
-for (let chunk of resumeChunks) {
+console.log('Starting to embed chunks...');
+for (let i = 0; i < resumeChunks.length; i++) {
+  const chunk = resumeChunks[i];
+  console.log(`\nEmbedding chunk ${i + 1}/${resumeChunks.length}`);
+  console.log('Chunk text:', chunk.substring(0, 100) + '...');
+  
   const embeddingOutput = await embedder(chunk, {
     pooling: 'mean',
     normalize: true
   });
+  
   const embedding = extractEmbedding(embeddingOutput);
+  console.log('Extracted embedding length:', embedding.length);
+  console.log('First few values:', embedding.slice(0, 5));
+  
+  if (embedding.length === 0) {
+    console.error(`Failed to extract embedding for chunk ${i + 1}`);
+    continue;
+  }
+  
   chunkEmbeddings.push(embedding);
-  console.log(`Chunk embedded with ${embedding.length} dimensions`);
 }
 console.log("✅ Chunks embedded:", chunkEmbeddings.length);
 
@@ -109,17 +148,30 @@ async function handleQuestion() {
   answerBox.textContent = 'Thinking...';
   
   try {
+    console.log('\nProcessing question:', question);
     const qEmbeddingOutput = await embedder(question, { 
       pooling: 'mean', 
       normalize: true 
     });
+    console.log('Question embedding output received');
+    
     const qEmbedding = extractEmbedding(qEmbeddingOutput);
+    console.log('Question embedding extracted, length:', qEmbedding.length);
+    console.log('Question embedding first few values:', qEmbedding.slice(0, 5));
     
     if (qEmbedding.length === 0) {
       throw new Error('Failed to generate question embedding');
     }
     
-    console.log(`Question embedded with ${qEmbedding.length} dimensions`);
+    // Verify chunk embeddings are valid before similarity calculation
+    console.log('\nChecking chunk embeddings:');
+    for (let i = 0; i < chunkEmbeddings.length; i++) {
+      const chunkEmb = chunkEmbeddings[i];
+      console.log(`Chunk ${i}: length=${chunkEmb?.length}, isArray=${Array.isArray(chunkEmb)}`);
+      if (!Array.isArray(chunkEmb) || chunkEmb.length === 0) {
+        console.error(`Invalid chunk embedding at index ${i}:`, chunkEmb);
+      }
+    }
     
     const relevantChunks = findRelevantChunks(qEmbedding);
     const prompt = buildPrompt(question, relevantChunks);
