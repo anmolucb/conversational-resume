@@ -1,27 +1,21 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Conversational Resume Assistant</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="script.js"></script>
 </head>
 <body>
-  <h1>🎙️ Resume Assistant</h1>
-  <div>
-    <input type="text" id="question" placeholder="Ask about Anmol's experience..." />
-    <button id="askBtn">Ask</button>
+  <div class="container">
+    <h1>💼 Talk to My Resume</h1>
+    <input id="questionInput" type="text" placeholder="Ask a question about me...">
+    <div class="button-row">
+      <button id="askButton">Ask</button>
+      <button id="voiceButton">🎤 Ask by Voice</button>
+    </div>
+    <div id="answer"></div>
   </div>
-
-  <div class="voice-controls">
-    <button id="startVoice">🎤 Speak</button>
-    <button id="stopVoice" disabled>🛑 Stop</button>
-  </div>
-
-  <div id="chatLog" class="chat-log"></div>
-  <div id="answer" class="answer"></div>
-
-  <script type="module" src="script.js"></script>
 </body>
 </html>
