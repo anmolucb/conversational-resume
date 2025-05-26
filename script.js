@@ -36,6 +36,8 @@ async function loadResumeChunks() {
   for (let chunk of resumeChunks) {
     const embedding = await embedder(chunk);
     chunkEmbeddings.push(embedding.data); // If it returns { data: [vector] }
+    console.log("Embedding vector length:", chunkEmbeddings[0].length);
+
 
   }
 }
