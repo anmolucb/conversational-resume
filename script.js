@@ -43,4 +43,68 @@ function findRelevantChunks(queryEmbedding, k = 3) {
 const memory = [];
 
 function updateMemory(userQ, botA) {
-  memory.push({
+  memory.push({ userQ, botA });
+  if (memory.length > 3) memory.shift(); // keep last 3 turns
+}
+
+// Handle user question
+async function handleQuestion() {
+  const question = document.getElementById('questionInput').value.trim();
+  if (!question) return;
+
+  const answerDiv = document.getElementById('answer');
+  answerDiv.innerText = "Thinking...";
+
+  const queryEmbedding = await embedder(question, {
+    pooling: 'mean',
+    normalize: true
+  });
+
+  const relevantChunks = findRelevantChunks(queryEmbedding[0]);
+
+  const memoryContext = memory.map(m => `User: ${m.userQ}\nBot: ${m.botA}`).join("\n");
+  const context = relevantChunks.join(" ");
+  const prompt = `${memoryContext}\nBased on this resume info: ${context}\nUser: ${question}\nBot:`;
+
+  const output = await generator(prompt, {
+    max_new_tokens: 100,
+    temperature: 0.7
+  });
+
+  const answer = output[0].generated_text.split("Bot:").pop().trim();
+  answerDiv.innerText = answer;
+  updateMemory(question, answer);
+}
+
+// Button click
+document.getElementById('askButton').addEventListener('click', handleQuestion);
+
+// Voice input (WebSpeech API)
+const voiceButton = document.getElementById('voiceButton');
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  voiceButton.onclick = () => {
+    recognition.start();
+    voiceButton.innerText = "🎙️ Listening...";
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById('questionInput').value = transcript;
+    voiceButton.innerText = "🎤 Ask by Voice";
+    handleQuestion();
+  };
+
+  recognition.onerror = () => {
+    voiceButton.innerText = "🎤 Ask by Voice";
+    alert("Voice recognition failed. Try again.");
+  };
+} else {
+  voiceButton.style.display = 'none'; // browser doesn't support speech API
+}
+
