@@ -3,17 +3,19 @@ import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.
 // Load LLM and embedder
 const generator = await pipeline('text-generation', 'Xenova/distilGPT2', {
   quantized: true,
-  progress_callback: (x) => console.log(`Generator: ${x.loaded}/${x.total}`)
+  progress_callback: x => console.log(`LLM: ${x.loaded}/${x.total}`)
 });
-
-const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+  quantized: true,
+  progress_callback: x => console.log(`Embedder: ${x.loaded}/${x.total}`)
+});
 
 console.log("✅ Models loaded");
 
 // Load and chunk resume
 const response = await fetch('resume.txt');
 const resumeText = await response.text();
-const resumeChunks = resumeText.match(/[^\.!\?]+[\.!\?]+/g) || [resumeText]; // sentence chunks
+const resumeChunks = resumeText.match(/[^\\.?!]+[\\.?!]+/g) || [resumeText]; // sentence-based chunks
 
 // Embed chunks
 const chunkEmbeddings = [];
@@ -22,11 +24,9 @@ for (let chunk of resumeChunks) {
     pooling: 'mean',
     normalize: true
   });
-  chunkEmbeddings.push(embedding);
-  console.log("Embedding vector length:", embedding.length);
-// 1D array
+  chunkEmbeddings.push(embedding); // fixed: embedder now returns final array
 }
-
+console.log("✅ Chunks embedded:", chunkEmbeddings.length);
 
 // Cosine similarity
 function cosineSimilarity(a, b) {
@@ -45,72 +45,61 @@ function findRelevantChunks(queryEmbedding, k = 3) {
   return scoredChunks.sort((a, b) => b.score - a.score).slice(0, k).map(c => c.chunk);
 }
 
-// Short-term memory
+// Short-term memory (last 3 Q&A)
 const memory = [];
 
 function updateMemory(userQ, botA) {
   memory.push({ userQ, botA });
-  if (memory.length > 3) memory.shift(); // keep last 3 turns
+  if (memory.length > 3) memory.shift(); // Keep last 3
 }
 
-// Handle user question
+function buildPrompt(question, contextChunks) {
+  const context = contextChunks.join(' ');
+  const memoryText = memory.map(m => `Q: ${m.userQ}\nA: ${m.botA}`).join('\n');
+  return `${memoryText}\nContext: ${context}\n\nQ: ${question}\nA:`;
+}
+
+// Main handler
 async function handleQuestion() {
-  const question = document.getElementById('questionInput').value.trim();
+  const input = document.getElementById('questionInput');
+  const answerBox = document.getElementById('answer');
+  const question = input.value.trim();
   if (!question) return;
 
-  const answerDiv = document.getElementById('answer');
-  answerDiv.innerText = "Thinking...";
+  answerBox.textContent = 'Thinking...';
 
-  const queryEmbedding = await embedder(question, {
-    pooling: 'mean',
-    normalize: true
-  });
+  const qEmbedding = await embedder(question, { pooling: 'mean', normalize: true });
+  const relevantChunks = findRelevantChunks(qEmbedding);
+  const prompt = buildPrompt(question, relevantChunks);
 
-  const relevantChunks = findRelevantChunks(queryEmbedding[0]);
-
-  const memoryContext = memory.map(m => `User: ${m.userQ}\nBot: ${m.botA}`).join("\n");
-  const context = relevantChunks.join(" ");
-  const prompt = `${memoryContext}\nBased on this resume info: ${context}\nUser: ${question}\nBot:`;
-
-  const output = await generator(prompt, {
+  const result = await generator(prompt, {
     max_new_tokens: 100,
     temperature: 0.7
   });
 
-  const answer = output[0].generated_text.split("Bot:").pop().trim();
-  answerDiv.innerText = answer;
-  updateMemory(question, answer);
+  const output = result[0].generated_text.split('A:').pop().trim();
+  updateMemory(question, output);
+  answerBox.textContent = output;
 }
 
-// Button click
-document.getElementById('askButton').addEventListener('click', handleQuestion);
-
-// Voice input (WebSpeech API)
+// Voice input
 const voiceButton = document.getElementById('voiceButton');
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  voiceButton.onclick = () => {
+if (voiceButton) {
+  voiceButton.addEventListener('click', () => {
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'en-US';
     recognition.start();
-    voiceButton.innerText = "🎙️ Listening...";
-  };
 
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    document.getElementById('questionInput').value = transcript;
-    voiceButton.innerText = "🎤 Ask by Voice";
-    handleQuestion();
-  };
-
-  recognition.onerror = () => {
-    voiceButton.innerText = "🎤 Ask by Voice";
-    alert("Voice recognition failed. Try again.");
-  };
-} else {
-  voiceButton.style.display = 'none'; // browser doesn't support speech API
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      document.getElementById('questionInput').value = transcript;
+      handleQuestion();
+    };
+  });
 }
 
+// Text input listener
+const askButton = document.getElementById('askButton');
+if (askButton) {
+  askButton.addEventListener('click', handleQuestion);
+}
