@@ -1,7 +1,11 @@
 import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
 
 // Load LLM and embedder
-const generator = await pipeline('text-generation', 'Xenova/distilGPT2');
+const generator = await pipeline('text-generation', 'Xenova/distilGPT2', {
+  quantized: true,
+  progress_callback: (x) => console.log(`Generator: ${x.loaded}/${x.total}`)
+});
+
 const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 
 console.log("✅ Models loaded");
