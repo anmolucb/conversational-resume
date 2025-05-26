@@ -22,9 +22,11 @@ for (let chunk of resumeChunks) {
     pooling: 'mean',
     normalize: true
   });
-  chunkEmbeddings.push(embedding[0]); // 1D array
+  chunkEmbeddings.push(embedding);
+  console.log("Embedding vector length:", embedding.length);
+// 1D array
 }
-console.log("Embedding vector length:", chunkEmbeddings[0].length);
+
 
 // Cosine similarity
 function cosineSimilarity(a, b) {
