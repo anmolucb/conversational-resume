@@ -1,0 +1,127 @@
+
+CHUNKED PROFESSIONAL PROFILE – ANMOL GUPTA
+
+🔹 CHUNK 1: PERSONAL SUMMARY
+Name: Anmol Gupta
+Location: Bangalore, India
+LinkedIn: https://www.linkedin.com/in/anmol-gupta-ucb
+
+Education:
+- Master of Analytics, University of California - Berkeley (2022–2023)
+- B.E. Industrial Engineering & Management, R.V. College of Engineering (2017–2021)
+
+Professional Identity:
+Data-driven Business Intelligence and Analytics expert with a strong background in data engineering and product thinking.
+Proven expertise in:
+- Building scalable ETL pipelines
+- Designing intuitive dashboards
+- Conducting A/B testing
+- Automating CRM and operational workflows
+- Driving business impact via actionable insights
+
+🔹 CHUNK 2: CURRENT ROLE – DEVREV INC.
+Role: Member of Technical Staff – Grow Analytics
+Location: Bangalore, India
+Duration: 2023–Present
+Key Contributions:
+- Developed lead attribution + real-time ROI dashboard → $15K quarterly savings
+- Built scalable ETL pipelines → 40% faster query performance
+- Launched sales dashboards → Saved 30+ hours/week manual work
+- Designed opportunity metrics → 20% faster closures, 10% win-rate boost
+- Created website activity tracking system → A/B testing efficiency + drop-off reduction (Patent filed)
+- Automated CRM workflows → +35% operational efficiency
+- Led data cleanup projects → Removed 20K+ duplicates, analyzed 1.5K orphan accounts
+
+🔹 CHUNK 3: PAST ROLE – KULIZA (FINVOLV)
+Role: Associate Product Manager
+Location: Bangalore, India
+Duration: 2021–2022
+Key Contributions:
+- Spearheaded a configurable loan workflow engine → 70% config cost cut
+- Drove analytics-informed product development → Faster adoption & releases
+- Built scalable onboarding/training → Cut ramp-up time by 3 weeks
+- Closed feedback loop with clients → +30% user satisfaction, reduced support tickets
+
+🔹 CHUNK 4: TECHNICAL SKILLS
+BI & Visualization: Looker Studio, Power BI, Tableau, Quicksight, Matplotlib, Seaborn
+Programming: Python (Pandas, NumPy, SciPy, Sklearn, Statsmodels), SQL (Redshift, Oracle, NoSQL), R
+ETL & Modeling: Data warehousing, ETL pipelines, data modeling
+Machine Learning & Stats: Regression, Classification, Clustering, Neural Nets
+Cloud & Big Data: AWS (Redshift, S3, DynamoDB, EC2), workflow automation
+Ops & Testing: Agile methodologies, CRM automation, A/B testing
+
+🔹 CHUNK 5: PROJECT HIGHLIGHT – GTM ATTRIBUTION
+Context: At DevRev, you built a custom attribution model linking revenue to GTM campaigns, AEs, and events.
+Tech Stack: Python, ETL pipelines, real-time dashboards
+Impact:
+- $15K quarterly cost savings
+- Optimized sales + marketing strategy
+- Interactive dashboard enabled real-time insights
+
+🔹 CHUNK 6: INTERVIEW PREP CONTEXT
+- Preparing for Amazon BIE-2 role (ECS department)
+- Final round: Bar Raiser Interview with a senior data engineering manager
+- Focus areas:
+  - STAR-format answers for Amazon’s 16 Leadership Principles
+  - Emphasis on metrics, quantification, vulnerability
+  - Resume-to-leadership principle mapping
+  - Python and ETL design Q&A (BIE/Data Engineering)
+
+🔹 CHUNK 7: PERSONAL TRAITS & LEARNING GOALS
+Identity: Lifelong learner, goal-driven, process optimizer
+Strengths: Strategic thinking, cross-functional collaboration, storytelling with data
+Learning Goals:
+- Deepen AWS & cloud-native analytics
+- Master production-grade ETL design
+- Build AI-powered, browser-based conversational resume with RAG
+Time Allocation: Max 1.5 hours/day for upskilling
+
+🔹 CHUNK 8: STAR Q&A – DELIVER RESULTS
+Q: Tell me about a time you had to deliver results under tight deadlines.
+S: At DevRev, marketing wanted a dashboard showing ROI per campaign/channel in real time. The deadline was 2 weeks.
+T: Build an attribution model + dashboard pulling data from disparate sources (CRM, ad platforms).
+A:
+- Created ETL pipelines to clean + join lead data
+- Developed a custom attribution model using Python
+- Built a real-time Looker Studio dashboard
+R: Delivered in 10 days. Marketing gained visibility into ROI per campaign → strategy shift saved $15K/quarter.
+
+🔹 CHUNK 9: STAR Q&A – OWNERSHIP
+Q: Describe a time you went beyond your responsibilities to solve a problem.
+S: At DevRev, sales reps struggled with duplicate + orphan records in the CRM.
+T: Although outside scope, I took initiative to fix it.
+A:
+- Built Python scripts to identify + deduplicate 20K+ records
+- Developed anomaly detection logic for 1.5K orphan accounts
+- Partnered with SalesOps for validation
+R: Improved CRM accuracy by 25%. Reduced reporting errors and improved pipeline visibility.
+
+🔹 CHUNK 10: STAR Q&A – CUSTOMER OBSESSION
+Q: Tell me about a time you solved a problem for a customer.
+S: At Kuliza, clients reported slow setup times for digital loan workflows.
+T: I needed to improve product onboarding experience.
+A:
+- Created a modular, configurable workflow engine
+- Worked with engineering to reduce hardcoded logic
+- Designed client-facing templates + training
+R: Cut setup time from weeks to 4 days. Customer satisfaction scores increased 30%.
+
+🔹 CHUNK 11: STAR Q&A – INVENT & SIMPLIFY
+Q: Give an example of when you invented something.
+S: DevRev needed insights into how users interacted with the website end-to-end.
+T: No existing tracking system; I had to build one.
+A:
+- Designed a user activity tracking framework (cookie-based + session tracking)
+- Built data model to stitch user journeys across pages
+- Enabled A/B test group isolation in Looker
+R: Increased A/B testing effectiveness and reduced drop-offs by 10%. Filed for US patent.
+
+🔹 CHUNK 12: STAR Q&A – BIAS FOR ACTION
+Q: Tell me about a time you had to take quick action.
+S: Mid-quarter, sales team lacked visibility into pipeline health.
+T: Without waiting for backlog grooming, I took initiative.
+A:
+- Identified key metrics: deal stages, AE performance, conversion rates
+- Used SQL and Looker to build a real-time pipeline dashboard
+- Shared weekly insights with leadership
+R: Improved sales forecasting. Weekly reporting effort dropped by 30+ hours.
