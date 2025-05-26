@@ -74,7 +74,11 @@ async function handleQuestion() {
   answerBox.textContent = 'Thinking...';
 
   const qEmbeddingOutput = await embedder(question, { pooling: 'mean', normalize: true });
-  const qEmbedding = Array.isArray(qEmbeddingOutput) ? qEmbeddingOutput[0] : qEmbeddingOutput;
+  let qEmbedding = qEmbeddingOutput;
+  if (Array.isArray(qEmbeddingOutput) && Array.isArray(qEmbeddingOutput[0])) {
+  qEmbedding = qEmbeddingOutput[0];
+  }
+
   const relevantChunks = findRelevantChunks(qEmbedding);
   const prompt = buildPrompt(question, relevantChunks);
 
