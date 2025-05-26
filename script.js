@@ -133,8 +133,15 @@ function updateMemory(userQ, botA) {
 
 function buildPrompt(question, contextChunks) {
   const context = contextChunks.join(' ');
-  const memoryText = memory.map(m => `Q: ${m.userQ}\nA: ${m.botA}`).join('\n');
-  return `${memoryText}\nContext: ${context}\n\nQ: ${question}\nA:`;
+  const memoryText = memory.length > 0 ? memory.map(m => `Q: ${m.userQ}\nA: ${m.botA}`).join('\n') + '\n' : '';
+  
+  // More structured prompt for better responses
+  return `You are a helpful assistant answering questions about a resume. Use the provided context to give complete, informative answers.
+
+${memoryText}Context: ${context}
+
+Question: ${question}
+Answer: Based on the resume information,`;
 }
 
 // Main handler with better error handling
@@ -174,14 +181,42 @@ async function handleQuestion() {
     }
     
     const relevantChunks = findRelevantChunks(qEmbedding);
+    console.log('Relevant chunks found:', relevantChunks.length);
+    console.log('Relevant chunks:', relevantChunks);
+    
     const prompt = buildPrompt(question, relevantChunks);
+    console.log('Generated prompt:', prompt);
     
     const result = await generator(prompt, {
-      max_new_tokens: 100,
-      temperature: 0.7
+      max_new_tokens: 150,
+      temperature: 0.3,
+      do_sample: true,
+      top_p: 0.9,
+      repetition_penalty: 1.1,
+      pad_token_id: 50256 // GPT2 pad token
     });
     
-    const output = result[0].generated_text.split('A:').pop().trim();
+    console.log('Raw generation result:', result);
+    
+    // Better output extraction
+    let output = result[0].generated_text;
+    
+    // Find the answer part after "Answer: Based on the resume information,"
+    const answerStart = output.indexOf('Answer: Based on the resume information,');
+    if (answerStart !== -1) {
+      output = output.substring(answerStart + 'Answer: Based on the resume information,'.length).trim();
+    } else {
+      // Fallback to original method
+      output = output.split('Answer:').pop().trim();
+    }
+    
+    // Clean up the output
+    output = output.split('\n')[0].trim(); // Take first line if multiple
+    if (output.length < 10) {
+      output = "I couldn't find enough information in the resume to answer that question completely.";
+    }
+    
+    console.log('Final output:', output);
     updateMemory(question, output);
     answerBox.textContent = output;
     
