@@ -112,6 +112,50 @@ function cosineSimilarity(a, b) {
   return dot / (normA * normB);
 }
 
+// Fallback function to extract answers directly from text when LLM fails
+function extractDirectAnswer(question, chunks) {
+  const lowerQuestion = question.toLowerCase();
+  const combinedText = chunks.join(' ').toLowerCase();
+  
+  // Simple pattern matching for common questions
+  if (lowerQuestion.includes('where') && (lowerQuestion.includes('work') || lowerQuestion.includes('job'))) {
+    // Look for company names or work locations
+    const workPatterns = [
+      /works? at ([^.!?]+)/i,
+      /employed by ([^.!?]+)/i,
+      /company[:\s]+([^.!?]+)/i,
+      /organization[:\s]+([^.!?]+)/i
+    ];
+    
+    for (const pattern of workPatterns) {
+      const match = chunks.join(' ').match(pattern);
+      if (match && match[1]) {
+        return `Anmol works at ${match[1].trim()}.`;
+      }
+    }
+  }
+  
+  if (lowerQuestion.includes('what') && lowerQuestion.includes('do')) {
+    // Look for job titles or roles
+    const rolePatterns = [
+      /position[:\s]+([^.!?]+)/i,
+      /role[:\s]+([^.!?]+)/i,
+      /title[:\s]+([^.!?]+)/i,
+      /job[:\s]+([^.!?]+)/i
+    ];
+    
+    for (const pattern of rolePatterns) {
+      const match = chunks.join(' ').match(pattern);
+      if (match && match[1]) {
+        return `Anmol's role is ${match[1].trim()}.`;
+      }
+    }
+  }
+  
+  // Return the most relevant chunk if no specific pattern matches
+  return chunks[0] || "I couldn't find specific information about that in the resume.";
+}
+
 // Retrieve top-K relevant chunks
 function findRelevantChunks(queryEmbedding, k = 3) {
   const scoredChunks = resumeChunks.map((chunk, idx) => {
@@ -133,15 +177,9 @@ function updateMemory(userQ, botA) {
 
 function buildPrompt(question, contextChunks) {
   const context = contextChunks.join(' ');
-  const memoryText = memory.length > 0 ? memory.map(m => `Q: ${m.userQ}\nA: ${m.botA}`).join('\n') + '\n' : '';
   
-  // More structured prompt for better responses
-  return `You are a helpful assistant answering questions about a resume. Use the provided context to give complete, informative answers.
-
-${memoryText}Context: ${context}
-
-Question: ${question}
-Answer: Based on the resume information,`;
+  // Simple, direct prompt that works better with small models
+  return `Context: ${context}\n\nQuestion: ${question}\nComplete answer:`;
 }
 
 // Main handler with better error handling
@@ -188,32 +226,34 @@ async function handleQuestion() {
     console.log('Generated prompt:', prompt);
     
     const result = await generator(prompt, {
-      max_new_tokens: 150,
-      temperature: 0.3,
-      do_sample: true,
-      top_p: 0.9,
-      repetition_penalty: 1.1,
-      pad_token_id: 50256 // GPT2 pad token
+      max_new_tokens: 50,
+      temperature: 0.1,
+      do_sample: false,
+      pad_token_id: 50256,
+      eos_token_id: 50256
     });
     
     console.log('Raw generation result:', result);
     
-    // Better output extraction
+    // Extract answer more carefully
     let output = result[0].generated_text;
     
-    // Find the answer part after "Answer: Based on the resume information,"
-    const answerStart = output.indexOf('Answer: Based on the resume information,');
-    if (answerStart !== -1) {
-      output = output.substring(answerStart + 'Answer: Based on the resume information,'.length).trim();
-    } else {
-      // Fallback to original method
-      output = output.split('Answer:').pop().trim();
+    // Remove the original prompt to get just the generated part
+    const promptEnd = output.indexOf('Complete answer:');
+    if (promptEnd !== -1) {
+      output = output.substring(promptEnd + 'Complete answer:'.length).trim();
     }
     
-    // Clean up the output
-    output = output.split('\n')[0].trim(); // Take first line if multiple
-    if (output.length < 10) {
-      output = "I couldn't find enough information in the resume to answer that question completely.";
+    // If output is still incomplete or just repeating, try template-based approach
+    if (output.length < 10 || output.toLowerCase().includes('the company is a')) {
+      // Extract relevant information directly from chunks
+      output = extractDirectAnswer(question, relevantChunks);
+    }
+    
+    // Clean up
+    output = output.split('\n')[0].trim();
+    if (output.length === 0) {
+      output = "I couldn't find specific information about that in the resume.";
     }
     
     console.log('Final output:', output);
