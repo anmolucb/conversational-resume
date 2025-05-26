@@ -24,14 +24,14 @@ for (let chunk of resumeChunks) {
     pooling: 'mean',
     normalize: true
   });
-  const embedding = Array.isArray(embeddingOutput) ? embeddingOutput[0] : embeddingOutput;
+  const embedding = Array.isArray(embeddingOutput) ? embeddingOutput.flat(Infinity) : embeddingOutput;
   chunkEmbeddings.push(embedding);
 }
 console.log("✅ Chunks embedded:", chunkEmbeddings.length);
 
 // Cosine similarity
 function cosineSimilarity(a, b) {
-  if (!Array.isArray(a) || !Array.isArray(b)) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
     console.error('Invalid vectors passed to cosineSimilarity');
     return 0;
   }
@@ -74,11 +74,7 @@ async function handleQuestion() {
   answerBox.textContent = 'Thinking...';
 
   const qEmbeddingOutput = await embedder(question, { pooling: 'mean', normalize: true });
-  let qEmbedding = qEmbeddingOutput;
-  if (Array.isArray(qEmbeddingOutput) && Array.isArray(qEmbeddingOutput[0])) {
-  qEmbedding = qEmbeddingOutput[0];
-  }
-
+  const qEmbedding = Array.isArray(qEmbeddingOutput) ? qEmbeddingOutput.flat(Infinity) : qEmbeddingOutput;
   const relevantChunks = findRelevantChunks(qEmbedding);
   const prompt = buildPrompt(question, relevantChunks);
 
