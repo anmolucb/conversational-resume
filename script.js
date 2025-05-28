@@ -1,324 +1,543 @@
-import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+// app.js
 
-// Load LLM and embedder
-const generator = await pipeline('text-generation', 'Xenova/distilGPT2', {
-  quantized: true,
-  progress_callback: x => console.log(`LLM: ${x.loaded}/${x.total}`)
-});
-const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-  quantized: true,
-  progress_callback: x => console.log(`Embedder: ${x.loaded}/${x.total}`)
-});
-console.log("✅ Models loaded");
+// --- Configuration ---
+const RESUME_PATH = './resume.txt'; // Path to your resume text file
+const EMBEDDING_MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
+const SLM_MODEL_NAME = 'Phi-3-mini-4k-instruct-q4f16_1-MLC'; // Fast loading and capable
 
-// Load and chunk resume
-const response = await fetch('resume.txt');
-const resumeText = await response.text();
-const resumeChunks = resumeText.match(/[^\.?!]+[\.?!]+/g) || [resumeText];
+// --- Global Variables ---
+let resumeTextChunks = [];
+let resumeEmbeddings = [];
+let embeddingPipeline = null;
+let llmEngine = null;
+let chatInitialized = false;
+let recognition = null; // For SpeechRecognition (voice input)
+let isListening = false; // To track microphone state
+let speechSynthesis = null; // For SpeechSynthesis API (voice output)
+let isAudioOutputEnabled = false; // Default TTS to off
+let availableVoices = []; // To store available TTS voices
 
-// Helper function to extract embeddings properly
-function extractEmbedding(embeddingOutput) {
-  console.log('Raw embedding output:', embeddingOutput);
-  console.log('Type:', typeof embeddingOutput);
-  console.log('Is array:', Array.isArray(embeddingOutput));
-  
-  // Handle Xenova transformer tensor output
-  if (embeddingOutput && typeof embeddingOutput === 'object') {
-    // Check if it's a tensor with data property
-    if (embeddingOutput.data) {
-      console.log('Found .data property, length:', embeddingOutput.data.length);
-      return Array.from(embeddingOutput.data);
-    }
-    // Check if it has tolist method
-    if (typeof embeddingOutput.tolist === 'function') {
-      const result = embeddingOutput.tolist();
-      console.log('tolist() result:', result);
-      return Array.isArray(result) ? result.flat(Infinity) : [result];
-    }
-    // Check if it's already an array-like object
-    if (embeddingOutput.length !== undefined) {
-      console.log('Array-like object, length:', embeddingOutput.length);
-      return Array.from(embeddingOutput);
-    }
-    // Check for nested structure
-    if (embeddingOutput[0] && Array.isArray(embeddingOutput[0])) {
-      console.log('Nested array structure detected');
-      return embeddingOutput[0];
-    }
-  }
-  
-  // Handle direct array
-  if (Array.isArray(embeddingOutput)) {
-    console.log('Direct array, flattening');
-    return embeddingOutput.flat(Infinity);
-  }
-  
-  console.error('Could not extract embedding from:', embeddingOutput);
-  return [];
-}
+// --- UI Elements ---
+const statusDiv = document.getElementById('status');
+const chatbox = document.getElementById('chatbox');
+const userInput = document.getElementById('userInput');
+const sendButton = document.getElementById('sendButton');
+const micButton = document.getElementById('micButton');
+const audioOutputToggle = document.getElementById('audioOutputToggle'); // Added for TTS
 
-// Embed chunks
-const chunkEmbeddings = [];
-console.log('Starting to embed chunks...');
-for (let i = 0; i < resumeChunks.length; i++) {
-  const chunk = resumeChunks[i];
-  console.log(`\nEmbedding chunk ${i + 1}/${resumeChunks.length}`);
-  console.log('Chunk text:', chunk.substring(0, 100) + '...');
-  
-  const embeddingOutput = await embedder(chunk, {
-    pooling: 'mean',
-    normalize: true
-  });
-  
-  const embedding = extractEmbedding(embeddingOutput);
-  console.log('Extracted embedding length:', embedding.length);
-  console.log('First few values:', embedding.slice(0, 5));
-  
-  if (embedding.length === 0) {
-    console.error(`Failed to extract embedding for chunk ${i + 1}`);
-    continue;
-  }
-  
-  chunkEmbeddings.push(embedding);
-}
-console.log("✅ Chunks embedded:", chunkEmbeddings.length);
+// --- Core Functions ---
 
-// Cosine similarity with better error handling
-function cosineSimilarity(a, b) {
-  if (!Array.isArray(a) || !Array.isArray(b)) {
-    console.error('Non-array vectors passed to cosineSimilarity:', typeof a, typeof b);
-    return 0;
-  }
-  
-  if (a.length !== b.length) {
-    console.error(`Vector dimension mismatch: ${a.length} vs ${b.length}`);
-    return 0;
-  }
-  
-  if (a.length === 0 || b.length === 0) {
-    console.error('Empty vectors passed to cosineSimilarity');
-    return 0;
-  }
-  
-  const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  
-  if (normA === 0 || normB === 0) {
-    console.error('Zero norm vector encountered');
-    return 0;
-  }
-  
-  return dot / (normA * normB);
-}
+/**
+ * 0. Load Resume, Chunk, Embed, and Initialize Models on Page Load
+ */
+async function initializeApp() {
+    console.log("App: Initializing...");
+    try {
+        updateStatus('Loading embedding model...');
+        console.log("Embedding model: Loading...");
+        embeddingPipeline = await window.pipeline('feature-extraction', EMBEDDING_MODEL_NAME, {
+            progress_callback: (progress) => {
+                console.log("Embedding Model Progress:", progress);
+                updateStatus(`Embedding Model: ${progress.status} (${Math.round(progress.progress || 0)}%)`);
+            }
+        });
+        updateStatus('Embedding model loaded.');
+        console.log("Embedding model: Loaded successfully.");
 
-// Fallback function to extract answers directly from text when LLM fails
-function extractDirectAnswer(question, chunks) {
-  const lowerQuestion = question.toLowerCase();
-  const combinedText = chunks.join(' ');
-  
-  console.log('Extracting direct answer for:', question);
-  console.log('From chunks:', chunks);
-  
-  // Simple pattern matching for common questions
-  if (lowerQuestion.includes('where') && (lowerQuestion.includes('work') || lowerQuestion.includes('job') || lowerQuestion.includes('working'))) {
-    // Look for company names or work locations
-    const workPatterns = [
-      /(?:works?|working|employed)\s+(?:at|for|with)\s+([^.!?\n,]+)/gi,
-      /(?:company|organization|employer)[:\s]+([^.!?\n,]+)/gi,
-      /(?:position|role)\s+at\s+([^.!?\n,]+)/gi,
-      /([A-Z][a-z]+(?:\s+[A-Z][a-z]*)*)\s+(?:company|corp|inc|ltd)/gi
-    ];
-    
-    for (const pattern of workPatterns) {
-      const matches = [...combinedText.matchAll(pattern)];
-      if (matches.length > 0) {
-        const company = matches[0][1].trim();
-        return `Based on the resume, Anmol works at ${company}.`;
-      }
-    }
-    
-    // Look for any proper nouns that might be company names
-    const sentences = combinedText.split(/[.!?]+/);
-    for (const sentence of sentences) {
-      if (sentence.toLowerCase().includes('work') || sentence.toLowerCase().includes('employ')) {
-        // Extract potential company names (capitalized words)
-        const capitalizedWords = sentence.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*\b/g);
-        if (capitalizedWords && capitalizedWords.length > 0) {
-          return `Based on the resume information: ${sentence.trim()}.`;
+        updateStatus('Fetching resume...');
+        console.log("Resume: Fetching from", RESUME_PATH);
+        const response = await fetch(RESUME_PATH);
+        if (!response.ok) {
+            console.error("Resume: Fetch failed with status", response.statusText);
+            throw new Error(`Failed to fetch resume: ${response.statusText}`);
         }
-      }
+        const resumeFullText = await response.text();
+        updateStatus('Resume fetched.');
+        console.log("Resume: Fetched successfully. Length:", resumeFullText.length);
+
+        console.log("Resume: Chunking text...");
+        resumeTextChunks = chunkText(resumeFullText, 400, 50);
+        updateStatus(`Resume split into ${resumeTextChunks.length} chunks.`);
+        console.log(`Resume: Split into ${resumeTextChunks.length} chunks. First chunk sample:`, resumeTextChunks[0]?.substring(0, 100) + "...");
+
+        updateStatus('Generating embeddings for resume chunks...');
+        console.log("Embeddings: Generating for", resumeTextChunks.length, "chunks...");
+        const embeddingsTensor = await embeddingPipeline(resumeTextChunks, {
+            pooling: 'mean',
+            normalize: true
+        });
+        resumeEmbeddings = embeddingsTensor.tolist();
+        updateStatus('Embeddings generated and stored in memory.');
+        console.log("Embeddings: Generated successfully. Stored in memory. Example embedding dimension:", resumeEmbeddings[0]?.length);
+
+        updateStatus('Initializing Language Model (this may take a moment)...');
+        console.log("LLM: Initializing. Model selected:", SLM_MODEL_NAME);
+        const worker = new Worker(new URL('./web-llm-worker.js', import.meta.url), { type: 'module' });
+        console.log("LLM: Web worker created.");
+
+        llmEngine = await window.CreateWebWorkerMLCEngine(
+            worker,
+            SLM_MODEL_NAME,
+            {
+                initProgressCallback: (progress) => {
+                    console.log("LLM Progress:", progress.text, `(${Math.round(progress.progress * 100)}%)`);
+                    updateStatus(`LLM: ${progress.text.replace("[System]", "").trim()}`);
+                }
+            }
+        );
+        console.log("LLM: Engine created.");
+
+        updateStatus('LLM: Finalizing model setup...');
+        console.log("LLM: Reloading model to ensure readiness...");
+        await llmEngine.reload(SLM_MODEL_NAME);
+        updateStatus('LLM: Model ready.');
+        console.log("LLM: Model reloaded and ready.");
+
+        chatInitialized = true;
+        console.log("Chat: Initialized.");
+
+        initializeVoiceInput(); // Initialize Speech-to-Text
+        initializeAudioOutput(); // Initialize Text-to-Speech
+
+        // Final UI enabling after all initializations
+        userInput.disabled = false;
+        sendButton.disabled = false;
+        if (recognition) {
+            micButton.disabled = false;
+            console.log("Voice Input: Mic button enabled.");
+        } else {
+            micButton.disabled = true;
+            console.log("Voice Input: Mic button disabled (not supported or initialized).");
+        }
+        if (speechSynthesis) { // Enable audio toggle if SpeechSynthesis is supported
+            audioOutputToggle.disabled = false;
+            console.log("Audio Output: Toggle button enabled.");
+        } else {
+            audioOutputToggle.disabled = true;
+            console.log("Audio Output: Toggle button disabled (not supported).");
+        }
+        updateStatus('I am ready. Ask me anything about my professional experience and I will do my best to answer your questions!');
+        addMessageToChatbox('Assistant', 'Hi there! I\'ve read the resume. How can I help you?');
+        console.log("App: Fully initialized.");
+
+    } catch (error) {
+        console.error('Initialization Error:', error.message, error.stack);
+        updateStatus(`Error initializing: ${error.message}`);
+        addMessageToChatbox('Assistant', `I couldn't start properly: ${error.message}`);
+        userInput.disabled = true;
+        sendButton.disabled = true;
+        micButton.disabled = true;
+        if (audioOutputToggle) audioOutputToggle.disabled = true; // Also disable audio toggle on critical error
     }
-  }
-  
-  if (lowerQuestion.includes('what') && (lowerQuestion.includes('do') || lowerQuestion.includes('job') || lowerQuestion.includes('role'))) {
-    // Look for job titles or roles
-    const rolePatterns = [
-      /(?:position|role|title|job)[:\s]+([^.!?\n,]+)/gi,
-      /(?:works?\s+as|employed\s+as)\s+([^.!?\n,]+)/gi,
-      /([A-Z][a-z]+\s+(?:Engineer|Developer|Manager|Analyst|Designer|Consultant))/gi
-    ];
-    
-    for (const pattern of rolePatterns) {
-      const matches = [...combinedText.matchAll(pattern)];
-      if (matches.length > 0) {
-        const role = matches[0][1].trim();
-        return `Based on the resume, Anmol's role is ${role}.`;
-      }
-    }
-  }
-  
-  if (lowerQuestion.includes('experience') || lowerQuestion.includes('skill')) {
-    // Return most relevant chunk for experience/skills questions
-    const mostRelevant = chunks[0];
-    if (mostRelevant && mostRelevant.length > 10) {
-      return `Based on the resume: ${mostRelevant.trim()}`;
-    }
-  }
-  
-  // If we have relevant chunks but no specific patterns, return the first one
-  if (chunks.length > 0 && chunks[0].length > 10) {
-    return `From the resume: ${chunks[0].trim()}`;
-  }
-  
-  return "I couldn't find specific information about that in the resume.";
 }
 
-// Retrieve top-K relevant chunks
-function findRelevantChunks(queryEmbedding, k = 3) {
-  const scoredChunks = resumeChunks.map((chunk, idx) => {
-    const score = cosineSimilarity(queryEmbedding, chunkEmbeddings[idx]);
-    return { chunk, score };
-  });
-  return scoredChunks
-    .sort((a, b) => b.score - a.score)
-    .slice(0, k)
-    .map(c => c.chunk);
+/**
+ * Text Chunking Implementation
+ */
+function chunkText(text, chunkSize = 500, overlap = 50) {
+    const chunks = [];
+    let i = 0;
+    while (i < text.length) {
+        const end = Math.min(i + chunkSize, text.length);
+        chunks.push(text.slice(i, end));
+        if (end === text.length) break;
+        i += chunkSize - overlap;
+    }
+    return chunks.filter(chunk => chunk.trim().length > 10);
 }
 
-// Short-term memory (last 3 Q&A)
-const memory = [];
-function updateMemory(userQ, botA) {
-  memory.push({ userQ, botA });
-  if (memory.length > 3) memory.shift();
+/**
+ * Single Embedding Generation (for query)
+ */
+async function generateSingleEmbedding(text) {
+    if (!embeddingPipeline) {
+        console.error("generateSingleEmbedding: Embedding pipeline not initialized.");
+        throw new Error("Embedding pipeline not initialized.");
+    }
+    console.log("Embeddings: Generating for query:", text.substring(0, 50) + "...");
+    const result = await embeddingPipeline(text, { pooling: 'mean', normalize: true });
+    console.log("Embeddings: Query embedding generated.");
+    return result.tolist()[0];
 }
 
-function buildPrompt(question, contextChunks) {
-  const context = contextChunks.join(' ');
-  
-  // Simple, direct prompt that works better with small models
-  return `Context: ${context}\n\nQuestion: ${question}\nComplete answer:`;
-}
+/**
+ * Initialize Voice Input (Speech-to-Text)
+ */
+function initializeVoiceInput() {
+    console.log("Voice Input: Initializing...");
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+        updateStatus('Voice recognition not supported by this browser.');
+        if(micButton) micButton.disabled = true;
+        console.warn('Voice Input: Speech Recognition API not found.');
+        return;
+    }
 
-// Main handler with better error handling
-async function handleQuestion() {
-  const input = document.getElementById('questionInput');
-  const answerBox = document.getElementById('answer');
-  const question = input.value.trim();
-  
-  if (!question) return;
-  
-  answerBox.textContent = 'Thinking...';
-  
-  try {
-    console.log('\nProcessing question:', question);
-    const qEmbeddingOutput = await embedder(question, { 
-      pooling: 'mean', 
-      normalize: true 
-    });
-    console.log('Question embedding output received');
-    
-    const qEmbedding = extractEmbedding(qEmbeddingOutput);
-    console.log('Question embedding extracted, length:', qEmbedding.length);
-    console.log('Question embedding first few values:', qEmbedding.slice(0, 5));
-    
-    if (qEmbedding.length === 0) {
-      throw new Error('Failed to generate question embedding');
-    }
-    
-    // Verify chunk embeddings are valid before similarity calculation
-    console.log('\nChecking chunk embeddings:');
-    for (let i = 0; i < chunkEmbeddings.length; i++) {
-      const chunkEmb = chunkEmbeddings[i];
-      console.log(`Chunk ${i}: length=${chunkEmb?.length}, isArray=${Array.isArray(chunkEmb)}`);
-      if (!Array.isArray(chunkEmb) || chunkEmb.length === 0) {
-        console.error(`Invalid chunk embedding at index ${i}:`, chunkEmb);
-      }
-    }
-    
-    const relevantChunks = findRelevantChunks(qEmbedding);
-    console.log('Relevant chunks found:', relevantChunks.length);
-    console.log('Relevant chunks:', relevantChunks);
-    
-    const prompt = buildPrompt(question, relevantChunks);
-    console.log('Generated prompt:', prompt);
-    
-    const result = await generator(prompt, {
-      max_new_tokens: 50,
-      temperature: 0.1,
-      do_sample: false,
-      pad_token_id: 50256,
-      eos_token_id: 50256
-    });
-    
-    console.log('Raw generation result:', result);
-    
-    // Extract answer more carefully
-    let output = result[0].generated_text;
-    
-    // Remove the original prompt to get just the generated part
-    const promptEnd = output.indexOf('Complete answer:');
-    if (promptEnd !== -1) {
-      output = output.substring(promptEnd + 'Complete answer:'.length).trim();
-    }
-    
-    // Check if LLM output is coherent and relevant
-    const isCoherent = output.length > 5 && 
-                      !output.includes('Google+') && 
-                      !output.includes('research with some very interesting') &&
-                      !output.toLowerCase().startsWith('the company is a') &&
-                      !output.includes('question will not have been answered');
-    
-    if (!isCoherent) {
-      console.log('LLM output appears incoherent, using direct extraction');
-      // Extract relevant information directly from chunks
-      output = extractDirectAnswer(question, relevantChunks);
-    } else {
-      // Clean up coherent LLM output
-      output = output.split('\n')[0].trim();
-    }
-    
-    if (output.length === 0) {
-      output = "I couldn't find specific information about that in the resume.";
-    }
-    
-    console.log('Final output:', output);
-    updateMemory(question, output);
-    answerBox.textContent = output;
-    
-  } catch (error) {
-    console.error('Error handling question:', error);
-    answerBox.textContent = 'Sorry, I encountered an error processing your question.';
-  }
-}
-
-// Voice input
-const voiceButton = document.getElementById('voiceButton');
-if (voiceButton) {
-  voiceButton.addEventListener('click', () => {
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = false;
     recognition.lang = 'en-US';
-    recognition.start();
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      document.getElementById('questionInput').value = transcript;
-      handleQuestion();
+    console.log("Voice Input: SpeechRecognition object created with lang", recognition.lang);
+
+    recognition.onstart = () => {
+        isListening = true;
+        micButton.classList.add('listening');
+        micButton.textContent = '👂';
+        updateStatus('Listening...');
+        sendButton.disabled = true;
+        console.log("Voice Input: Recognition started. Listening...");
     };
-  });
+
+    recognition.onresult = (event) => {
+        const last = event.results.length - 1;
+        const transcript = event.results[last][0].transcript.trim();
+        userInput.value = transcript;
+        updateStatus(`Recognized: "${transcript}"`);
+        console.log("Voice Input: Result received. Transcript:", transcript);
+        if (transcript) {
+            console.log("Voice Input: Transcript valid, calling handleUserQuery.");
+            handleUserQuery();
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error('Voice Input: Speech recognition error -', event.error, event.message);
+        let errorMessage = 'Voice input error';
+        if (event.error === 'no-speech') {
+            errorMessage = 'No speech detected. Please try again.';
+        } else if (event.error === 'audio-capture') {
+            errorMessage = 'Microphone problem. Ensure it is enabled and working.';
+        } else if (event.error === 'not-allowed') {
+            errorMessage = 'Microphone access denied. Allow access in browser settings.';
+        } else if (event.error === 'network') {
+            errorMessage = 'Network error during voice recognition.';
+        }
+        updateStatus(errorMessage);
+    };
+
+    recognition.onend = () => {
+        isListening = false;
+        micButton.classList.remove('listening');
+        micButton.textContent = '🎤';
+        if (chatInitialized && !userInput.disabled) {
+             sendButton.disabled = false;
+        }
+        console.log("Voice Input: Recognition ended.");
+    };
+
+    micButton.addEventListener('click', () => {
+        if (!recognition) {
+            console.warn("Voice Input: Mic button clicked but recognition not initialized.");
+            return;
+        }
+
+        if (isListening) {
+            console.log("Voice Input: Mic button clicked while listening. Stopping recognition.");
+            recognition.stop();
+        } else {
+            console.log("Voice Input: Mic button clicked. Starting recognition.");
+            try {
+                if (chatInitialized) userInput.disabled = false;
+                recognition.start();
+            } catch (e) {
+                console.error("Voice Input: Error starting recognition -", e.name, e.message);
+                if (e.name === 'InvalidStateError') {
+                    updateStatus('Please wait before trying voice input again.');
+                } else {
+                    updateStatus('Could not start voice input.');
+                }
+                isListening = false;
+                micButton.classList.remove('listening');
+                micButton.textContent = '🎤';
+            }
+        }
+    });
+    console.log("Voice Input: Event listeners set up.");
 }
 
-// Text input listener
-const askButton = document.getElementById('askButton');
-if (askButton) {
-  askButton.addEventListener('click', handleQuestion);
+/**
+ * Initialize Audio Output (Text-to-Speech)
+ */
+function initializeAudioOutput() {
+    console.log("Audio Output: Initializing...");
+    if ('speechSynthesis' in window) {
+        speechSynthesis = window.speechSynthesis;
+        console.log("Audio Output: SpeechSynthesis API found.");
+
+        const populateVoices = () => {
+            availableVoices = speechSynthesis.getVoices();
+            console.log("Audio Output: Available voices:", availableVoices.length > 0 ? availableVoices.length + " voices found." : "None initially, may load async.");
+            // Log details of a few voices if available
+            if (availableVoices.length > 0) {
+                console.log("Audio Output: Example voices:", availableVoices.slice(0, 5).map(v => ({name: v.name, lang: v.lang})));
+            }
+        };
+        populateVoices(); // Initial call
+        if (speechSynthesis.onvoiceschanged !== undefined) { // Check if event is supported
+            speechSynthesis.onvoiceschanged = populateVoices; // Update when voice list changes
+        }
+
+        if (audioOutputToggle) {
+            audioOutputToggle.disabled = false; // Enable the toggle button
+            audioOutputToggle.addEventListener('click', () => {
+                isAudioOutputEnabled = !isAudioOutputEnabled;
+                if (isAudioOutputEnabled) {
+                    audioOutputToggle.textContent = '🔊 Audio On';
+                    audioOutputToggle.style.backgroundColor = '#28a745'; // Green
+                    console.log("Audio Output: Enabled by user.");
+                    speakText("Audio output enabled.");
+                } else {
+                    audioOutputToggle.textContent = '🔇 Audio Off';
+                    audioOutputToggle.style.backgroundColor = '#6c757d'; // Grey
+                    console.log("Audio Output: Disabled by user.");
+                    if (speechSynthesis.speaking) {
+                        speechSynthesis.cancel();
+                        console.log("Audio Output: Cancelled ongoing speech.");
+                    }
+                }
+            });
+        } else {
+            console.warn("Audio Output: Toggle button not found in DOM.");
+        }
+    } else {
+        updateStatus('Text-to-speech not supported by this browser.');
+        if (audioOutputToggle) audioOutputToggle.disabled = true;
+        console.warn('Audio Output: SpeechSynthesis API not found.');
+    }
 }
+
+/**
+ * Speak the provided text using SpeechSynthesis
+ * @param {string} text - The text to speak
+ */
+function speakText(text) {
+    if (!isAudioOutputEnabled || !speechSynthesis || !text || text.trim() === "") {
+        // console.log("Audio Output: Skipped speaking (disabled, not supported, or empty text).");
+        return;
+    }
+    console.log("Audio Output: Attempting to speak -", text.substring(0, 50) + "...");
+
+    if (speechSynthesis.speaking || speechSynthesis.pending) {
+        speechSynthesis.cancel(); 
+        console.log("Audio Output: Cancelled previous/pending speech for new utterance.");
+        // A brief pause after cancel can sometimes help ensure the next utterance starts cleanly
+        // This is especially true on some browsers/platforms.
+        setTimeout(() => proceedWithSpeech(text), 50); 
+    } else {
+        proceedWithSpeech(text);
+    }
+}
+
+function proceedWithSpeech(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // Default language
+
+    // Attempt to select a suitable voice
+    const preferredVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.default) || 
+                           availableVoices.find(voice => voice.lang === 'en-US');
+    if (preferredVoice) {
+        utterance.voice = preferredVoice;
+        console.log("Audio Output: Using voice -", preferredVoice.name, `(${preferredVoice.lang})`);
+    } else if (availableVoices.length > 0) {
+        utterance.voice = availableVoices[0]; // Fallback to the first available voice
+         console.log("Audio Output: Preferred 'en-US' voice not found, using first available voice -", availableVoices[0].name, `(${availableVoices[0].lang})`);
+    } else {
+        console.log("Audio Output: No voices available, using browser default for lang", utterance.lang);
+    }
+    
+    utterance.rate = 1.0; 
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => {
+        console.log("Audio Output: Speech started for utterance.");
+    };
+    utterance.onend = () => {
+        console.log("Audio Output: Speech ended for utterance.");
+    };
+    utterance.onerror = (event) => {
+        console.error("Audio Output: Speech synthesis error -", event.error, "for text:", event.utterance.text.substring(0, 50) + "...");
+    };
+    
+    speechSynthesis.speak(utterance);
+}
+
+
+/**
+ * Cosine Similarity Function
+ */
+function cosineSimilarity(vecA, vecB) {
+    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * User Query Handling
+ */
+async function handleUserQuery() {
+    const query = userInput.value.trim();
+    if (!query || !chatInitialized) {
+        console.warn("handleUserQuery: Query is empty or chat not initialized. Aborting.");
+        return;
+    }
+    console.log("Query Handling: Started for query -", query);
+
+    addMessageToChatbox('User', query);
+    userInput.value = '';
+    userInput.disabled = true;
+    sendButton.disabled = true;
+    if (recognition && !isListening && micButton) micButton.disabled = true;
+    updateStatus('Thinking...');
+
+    try {
+        const queryEmbedding = await generateSingleEmbedding(query);
+        console.log("Query Handling: Query embedding generated.");
+
+        const N = 3;
+        console.log("Query Handling: Retrieving top", N, "relevant chunks.");
+        const similarities = resumeEmbeddings.map((chunkEmb, index) => ({
+            index: index,
+            text: resumeTextChunks[index],
+            similarity: cosineSimilarity(queryEmbedding, chunkEmb)
+        }));
+
+        similarities.sort((a, b) => b.similarity - a.similarity);
+        const relevantChunks = similarities.slice(0, N).map(sim => resumeTextChunks[sim.index]);
+
+        console.log("Query Handling: Relevant chunks found:", relevantChunks.map(chunk => ({
+            text: chunk.substring(0, 100) + "...",
+        })));
+
+        const context = relevantChunks.join('\n---\n');
+        const prompt = `You are a helpful assistant representing Anmol Gupta. Please do not deviate from the the resume and stick to whatever information you are ableable to find. Please talking as1st person that is refer yourself as I. Be respectful and professional. Do not use any bad words or give opinionon political or religious matters or anything else that could create controvery. Answer question Based ONLY on the following resume information. If the information is not in the context, say "I will not be able to answer that question at the moment."\n\nCONTEXT:\n${context}\n\nQUESTION: ${query}\n\nANSWER:`;
+        console.log("Query Handling: Constructed prompt for LLM. Length:", prompt.length);
+
+        let fullResponse = "";
+        console.log("Query Handling: Sending prompt to LLM for completion...");
+        const stream = await llmEngine.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            stream: true,
+        });
+        console.log("Query Handling: LLM stream initiated.");
+
+        let firstChunk = true;
+        let assistantMessageDivSpan = null;
+
+        for await (const chunk of stream) {
+            const deltaContent = chunk.choices[0]?.delta?.content;
+            if (deltaContent) {
+                fullResponse += deltaContent;
+                if (firstChunk) {
+                    assistantMessageDivSpan = addMessageToChatbox('Assistant', deltaContent, true);
+                    firstChunk = false;
+                } else if (assistantMessageDivSpan) {
+                    assistantMessageDivSpan.innerHTML += deltaContent.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+                    chatbox.scrollTop = chatbox.scrollHeight;
+                }
+            }
+        }
+        console.log("Query Handling: LLM stream finished. Full response length:", fullResponse.length);
+
+        let responseToSpeak = "";
+        if (firstChunk && fullResponse === "") {
+             responseToSpeak = "I have no relevant information to share.";
+             addMessageToChatbox('Assistant', responseToSpeak);
+             console.log("Query Handling: LLM provided no relevant information or an empty response.");
+        } else if (firstChunk && fullResponse !== "") { 
+            responseToSpeak = fullResponse;
+            addMessageToChatbox('Assistant', responseToSpeak);
+            console.log("Query Handling: LLM response added (non-streamed fallback).");
+        } else if (!firstChunk && fullResponse !== "") {
+            responseToSpeak = fullResponse;
+            // Message already added via streaming
+            console.log("Query Handling: Streamed response complete.");
+        }
+        speakText(responseToSpeak); // Speak the final determined response
+
+    } catch (error) {
+        console.error('Query Handling: Error -', error.message, error.stack);
+        const errorReply = `Sorry, I am facing a problem. Please try again later.`;
+        addMessageToChatbox('Assistant', errorReply);
+        speakText(errorReply); // Speak the generic error reply
+    } finally {
+        userInput.disabled = false;
+        sendButton.disabled = false;
+         if (recognition && micButton) micButton.disabled = false;
+        updateStatus('I am ready. Ask me anything about my professional experience and I will do my best to answer your questions!');
+        userInput.focus();
+        console.log("Query Handling: Finished. UI re-enabled.");
+    }
+}
+
+// --- Helper UI Functions ---
+function updateStatus(message) {
+    if(statusDiv) statusDiv.textContent = message;
+}
+
+/**
+ * Adds a message to the chatbox with appropriate styling and wrapper for alignment.
+ * @param {string} sender - 'User' or 'Assistant'
+ * @param {string} message - The message content
+ * @param {boolean} returnSpanForStreaming - If true, returns the inner span for live updates
+ * @returns {HTMLSpanElement | null} - The span element if returnSpanForStreaming is true, otherwise null
+ */
+function addMessageToChatbox(sender, message, returnSpanForStreaming = false) {
+    if (!chatbox) {
+        console.error("addMessageToChatbox: chatbox element not found!");
+        return null;
+    }
+
+    const messageWrapper = document.createElement('div');
+    messageWrapper.classList.add('message-wrapper');
+
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', sender.toLowerCase() + '-message');
+
+    if (sender.toLowerCase() === 'user') {
+        messageWrapper.classList.add('user-message-wrapper');
+    } else {
+        messageWrapper.classList.add('assistant-message-wrapper');
+    }
+
+    const cleanMessage = message.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const messageSpan = document.createElement('span');
+    messageSpan.innerHTML = cleanMessage.replace(/\n/g, '<br>');
+
+    messageDiv.appendChild(messageSpan);
+    messageWrapper.appendChild(messageDiv);
+    chatbox.appendChild(messageWrapper);
+    chatbox.scrollTop = chatbox.scrollHeight;
+
+    if (returnSpanForStreaming) {
+        return messageSpan;
+    }
+    return null;
+}
+
+// --- Event Listeners ---
+if (sendButton) {
+    sendButton.addEventListener('click', handleUserQuery);
+} else {
+    console.error("Send button not found during event listener setup.");
+}
+if (userInput) {
+    userInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter' && !sendButton.disabled) {
+            handleUserQuery();
+        }
+    });
+} else {
+    console.error("User input not found during event listener setup.");
+}
+console.log("App: Event listeners for send button and user input potentially attached.");
+
+// --- Initialize ---
+initializeApp();
