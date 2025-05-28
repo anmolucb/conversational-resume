@@ -1,127 +1,37 @@
+My Journey as a Data-Driven Analytics Leader
 
-CHUNKED PROFESSIONAL PROFILE – ANMOL GUPTA
+My name is Anmol Gupta, and I’m based in Bangalore, India. With a deep-rooted passion for data, I’ve built a career around transforming complex datasets into meaningful business insights that drive growth and operational excellence. I hold a Master of Analytics degree from the University of California, Berkeley (2022 to 2023) (completed and graduated in 2023) , and a Bachelor's in Industrial Engineering and Management from R.V. College of Engineering (2017 to 2021).
 
-🔹 CHUNK 1: PERSONAL SUMMARY
-Name: Anmol Gupta
-Location: Bangalore, India
-LinkedIn: https://www.linkedin.com/in/anmol-gupta-ucb
+My professional identity is grounded in being a data-driven Business Intelligence and Analytics expert. I specialize in building scalable ETL pipelines, designing intuitive dashboards, conducting A/B testing, and automating CRM and operational workflows. My strength lies in translating data into actionable insights that generate measurable business impact.
 
-Education:
-- Master of Analytics, University of California - Berkeley (2022–2023)
-- B.E. Industrial Engineering & Management, R.V. College of Engineering (2017–2021)
+My Experience at DevRev (currently working here)
+Currently, I serve as a Member of Technical Staff – Grow Analytics at DevRev. Since joining DevRev in 2023, I have led several initiatives that significantly enhanced operational efficiency and data-driven decision-making across the organization.
 
-Professional Identity:
-Data-driven Business Intelligence and Analytics expert with a strong background in data engineering and product thinking.
-Proven expertise in:
-- Building scalable ETL pipelines
-- Designing intuitive dashboards
-- Conducting A/B testing
-- Automating CRM and operational workflows
-- Driving business impact via actionable insights
+One of my most impactful contributions at DevRev was developing a custom lead attribution model coupled with a real-time ROI dashboard, resulting in $15,000 in quarterly savings. I also built scalable ETL pipelines that improved query performance by 40%, launched sales dashboards that saved over 30 hours per week in manual effort, and designed opportunity metrics that accelerated deal closures by 20% while boosting win rates by 10%.
 
-🔹 CHUNK 2: CURRENT ROLE – DEVREV INC.
-Role: Member of Technical Staff – Grow Analytics
-Location: Bangalore, India
-Duration: 2023–Present
-Key Contributions:
-- Developed lead attribution + real-time ROI dashboard → $15K quarterly savings
-- Built scalable ETL pipelines → 40% faster query performance
-- Launched sales dashboards → Saved 30+ hours/week manual work
-- Designed opportunity metrics → 20% faster closures, 10% win-rate boost
-- Created website activity tracking system → A/B testing efficiency + drop-off reduction (Patent filed)
-- Automated CRM workflows → +35% operational efficiency
-- Led data cleanup projects → Removed 20K+ duplicates, analyzed 1.5K orphan accounts
+To further refine our marketing strategy at DevRev, I created a comprehensive website activity tracking system that improved A/B testing effectiveness and reduced user drop-offs by 10%. This work led to a patent filing. Additionally, I automated CRM workflows, enhancing operational efficiency by 35%, and led a data hygiene project where I removed over 20,000 duplicate records and analyzed 1,500 orphan accounts to improve CRM accuracy.
 
-🔹 CHUNK 3: PAST ROLE – KULIZA (FINVOLV)
-Role: Associate Product Manager
-Location: Bangalore, India
-Duration: 2021–2022
-Key Contributions:
-- Spearheaded a configurable loan workflow engine → 70% config cost cut
-- Drove analytics-informed product development → Faster adoption & releases
-- Built scalable onboarding/training → Cut ramp-up time by 3 weeks
-- Closed feedback loop with clients → +30% user satisfaction, reduced support tickets
+Earlier Experience in Product Management at Kuliza (worked here from 2021 to 2022)
+Before transitioning to analytics, I worked as an Associate Product Manager at Kuliza from 2021 to 2022. I led the development of a pre configured loan workflow engine at Kuliza that cut configuration costs by 70% and accelerated adoption through analytics-informed product development. I also designed a scalable onboarding and training program that reduced ramp-up time by three weeks, and I implemented a closed-loop feedback system with clients that increased user satisfaction by 30% while decreasing support tickets.
 
-🔹 CHUNK 4: TECHNICAL SKILLS
-BI & Visualization: Looker Studio, Power BI, Tableau, Quicksight, Matplotlib, Seaborn
-Programming: Python (Pandas, NumPy, SciPy, Sklearn, Statsmodels), SQL (Redshift, Oracle, NoSQL), R
-ETL & Modeling: Data warehousing, ETL pipelines, data modeling
-Machine Learning & Stats: Regression, Classification, Clustering, Neural Nets
-Cloud & Big Data: AWS (Redshift, S3, DynamoDB, EC2), workflow automation
-Ops & Testing: Agile methodologies, CRM automation, A/B testing
+My Technical Skill Set
+I’m proficient in BI tools like Looker Studio and Tableau. My programming expertise includes Python (Pandas, NumPy, SciPy, Scikit-learn, Statsmodels), SQL (across Redshift, Oracle, NoSQL), and R. I have hands-on experience in ETL, data warehousing, and modeling, along with statistical techniques such as regression, classification, clustering, and neural networks. My cloud and big data skills include AWS (Redshift, S3, DynamoDB, EC2), and I regularly work with agile methodologies, A/B testing, and CRM automation.
 
-🔹 CHUNK 5: PROJECT HIGHLIGHT – GTM ATTRIBUTION
-Context: At DevRev, you built a custom attribution model linking revenue to GTM campaigns, AEs, and events.
-Tech Stack: Python, ETL pipelines, real-time dashboards
-Impact:
-- $15K quarterly cost savings
-- Optimized sales + marketing strategy
-- Interactive dashboard enabled real-time insights
+Impact Through Innovation and Action
+Throughout my journey, I've consistently taken the initiative to solve problems beyond my immediate responsibilities. For instance, at DevRev when sales reps struggled with CRM data quality at DevRev, I built Python scripts to deduplicate 20,000+ records and applied anomaly detection to 1,500 orphan accounts. This improved CRM accuracy by 25% and enhanced pipeline visibility.
 
-🔹 CHUNK 6: INTERVIEW PREP CONTEXT
-- Preparing for Amazon BIE-2 role (ECS department)
-- Final round: Bar Raiser Interview with a senior data engineering manager
-- Focus areas:
-  - STAR-format answers for Amazon’s 16 Leadership Principles
-  - Emphasis on metrics, quantification, vulnerability
-  - Resume-to-leadership principle mapping
-  - Python and ETL design Q&A (BIE/Data Engineering)
+Another time at Devrev our marketing team urgently needed a dashboard to show real-time ROI across campaigns and channels. Despite a tight two-week deadline, I built an attribution model and an interactive Looker Studio dashboard within ten days. This enabled a strategic shift that led to $15K in quarterly savings.
 
-🔹 CHUNK 7: PERSONAL TRAITS & LEARNING GOALS
-Identity: Lifelong learner, goal-driven, process optimizer
-Strengths: Strategic thinking, cross-functional collaboration, storytelling with data
-Learning Goals:
-- Deepen AWS & cloud-native analytics
-- Master production-grade ETL design
-- Build AI-powered, browser-based conversational resume with RAG
-Time Allocation: Max 1.5 hours/day for upskilling
+At Kuliza, where I worked as a product manager, I addressed client complaints about slow onboarding for digital loan workflows. I led the development of a modular and configurable engine, reduced hardcoded dependencies, and designed training templates. This reduced setup time from weeks to just four days and improved customer satisfaction by 30%.
 
-🔹 CHUNK 8: STAR Q&A – DELIVER RESULTS
-Q: Tell me about a time you had to deliver results under tight deadlines.
-S: At DevRev, marketing wanted a dashboard showing ROI per campaign/channel in real time. The deadline was 2 weeks.
-T: Build an attribution model + dashboard pulling data from disparate sources (CRM, ad platforms).
-A:
-- Created ETL pipelines to clean + join lead data
-- Developed a custom attribution model using Python
-- Built a real-time Looker Studio dashboard
-R: Delivered in 10 days. Marketing gained visibility into ROI per campaign → strategy shift saved $15K/quarter.
+One of my proudest innovations was at DevRev, where I built a user activity tracking system from scratch. By designing a robust data model and integrating cookie-based tracking, I enabled the isolation of A/B test groups and cross-page journey stitching. This significantly improved testing effectiveness and user engagement metrics for DevRev.
 
-🔹 CHUNK 9: STAR Q&A – OWNERSHIP
-Q: Describe a time you went beyond your responsibilities to solve a problem.
-S: At DevRev, sales reps struggled with duplicate + orphan records in the CRM.
-T: Although outside scope, I took initiative to fix it.
-A:
-- Built Python scripts to identify + deduplicate 20K+ records
-- Developed anomaly detection logic for 1.5K orphan accounts
-- Partnered with SalesOps for validation
-R: Improved CRM accuracy by 25%. Reduced reporting errors and improved pipeline visibility.
+When urgent pipeline insights were needed mid-quarter in DevRev by sales leadership team, I quickly identified key sales metrics, built a real-time dashboard in Looker using SQL, and initiated weekly insights sharing with leadership. This improved forecasting accuracy and reduced reporting efforts by over 30 man hours weekly.
 
-🔹 CHUNK 10: STAR Q&A – CUSTOMER OBSESSION
-Q: Tell me about a time you solved a problem for a customer.
-S: At Kuliza, clients reported slow setup times for digital loan workflows.
-T: I needed to improve product onboarding experience.
-A:
-- Created a modular, configurable workflow engine
-- Worked with engineering to reduce hardcoded logic
-- Designed client-facing templates + training
-R: Cut setup time from weeks to 4 days. Customer satisfaction scores increased 30%.
+Who I Am and Where I'm Headed
+I identify as a lifelong learner and a goal-oriented professional who thrives on optimizing processes. My core strengths lie in strategic thinking, cross-functional collaboration, and storytelling through data.
 
-🔹 CHUNK 11: STAR Q&A – INVENT & SIMPLIFY
-Q: Give an example of when you invented something.
-S: DevRev needed insights into how users interacted with the website end-to-end.
-T: No existing tracking system; I had to build one.
-A:
-- Designed a user activity tracking framework (cookie-based + session tracking)
-- Built data model to stitch user journeys across pages
-- Enabled A/B test group isolation in Looker
-R: Increased A/B testing effectiveness and reduced drop-offs by 10%. Filed for US patent.
+I dedicate time to upskill and my current learning goals include deepening my understanding of AWS and cloud-native analytics, mastering production-grade ETL design, and building an AI-powered tools.
 
-🔹 CHUNK 12: STAR Q&A – BIAS FOR ACTION
-Q: Tell me about a time you had to take quick action.
-S: Mid-quarter, sales team lacked visibility into pipeline health.
-T: Without waiting for backlog grooming, I took initiative.
-A:
-- Identified key metrics: deal stages, AE performance, conversion rates
-- Used SQL and Looker to build a real-time pipeline dashboard
-- Shared weekly insights with leadership
-R: Improved sales forecasting. Weekly reporting effort dropped by 30+ hours.
+Through my journey, I aim to continue solving impactful problems, inventing scalable systems, and delivering measurable value through data.
+
