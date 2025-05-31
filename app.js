@@ -23,7 +23,10 @@ const chatbox = document.getElementById('chatbox');
 const userInput = document.getElementById('userInput');
 const sendButton = document.getElementById('sendButton');
 const micButton = document.getElementById('micButton');
-const audioOutputToggle = document.getElementById('audioOutputToggle'); // Added for TTS
+const audioOutputToggle = document.getElementById('audioOutputToggle');
+const loadingProgressContainer = document.getElementById('loading-progress-container'); // For progress bar
+const loadingProgressBar = document.getElementById('loading-progress-bar');     // For progress bar
+
 
 // --- Core Functions ---
 
@@ -72,6 +75,8 @@ async function initializeApp() {
 
         updateStatus('Initializing Language Model (this may take a moment)...');
         console.log("LLM: Initializing. Model selected:", SLM_MODEL_NAME);
+        if (loadingProgressContainer) loadingProgressContainer.style.display = 'block'; // Show progress bar container
+
         const worker = new Worker(new URL('./web-llm-worker.js', import.meta.url), { type: 'module' });
         console.log("LLM: Web worker created.");
 
@@ -80,12 +85,22 @@ async function initializeApp() {
             SLM_MODEL_NAME,
             {
                 initProgressCallback: (progress) => {
+                    let statusText = `LLM: ${progress.text.replace("[System]", "").trim()}`;
+                    if (progress.text.includes("Fetching") || progress.text.includes("Loading") || progress.text.includes("model from cache")) {
+                        statusText = `Setting up AI (first visit may take a few minutes): ${progress.text.replace("[System]", "").trim()}`;
+                    }
+                    updateStatus(statusText);
                     console.log("LLM Progress:", progress.text, `(${Math.round(progress.progress * 100)}%)`);
-                    updateStatus(`LLM: ${progress.text.replace("[System]", "").trim()}`);
+                    if (loadingProgressBar && loadingProgressContainer && loadingProgressContainer.style.display === 'block') {
+                        const percent = Math.round(progress.progress * 100);
+                        loadingProgressBar.style.width = percent + '%';
+                        loadingProgressBar.textContent = percent + '%';
+                    }
                 }
             }
         );
         console.log("LLM: Engine created.");
+        if (loadingProgressContainer) loadingProgressContainer.style.display = 'none'; // Hide progress bar
 
         updateStatus('LLM: Finalizing model setup...');
         console.log("LLM: Reloading model to ensure readiness...");
@@ -100,19 +115,19 @@ async function initializeApp() {
         initializeAudioOutput(); // Initialize Text-to-Speech
 
         // Final UI enabling after all initializations
-        userInput.disabled = false;
-        sendButton.disabled = false;
-        if (recognition) {
+        if(userInput) userInput.disabled = false;
+        if(sendButton) sendButton.disabled = false;
+        if (recognition && micButton) {
             micButton.disabled = false;
             console.log("Voice Input: Mic button enabled.");
-        } else {
+        } else if(micButton) {
             micButton.disabled = true;
             console.log("Voice Input: Mic button disabled (not supported or initialized).");
         }
-        if (speechSynthesis) { // Enable audio toggle if SpeechSynthesis is supported
+        if (speechSynthesis && audioOutputToggle) {
             audioOutputToggle.disabled = false;
             console.log("Audio Output: Toggle button enabled.");
-        } else {
+        } else if(audioOutputToggle) {
             audioOutputToggle.disabled = true;
             console.log("Audio Output: Toggle button disabled (not supported).");
         }
@@ -123,18 +138,19 @@ async function initializeApp() {
     } catch (error) {
         console.error('Initialization Error:', error.message, error.stack);
         updateStatus(`Error initializing: ${error.message}`);
+        if (loadingProgressContainer) loadingProgressContainer.style.display = 'none'; // Hide progress bar on error
         addMessageToChatbox('Assistant', `I couldn't start properly: ${error.message}`);
-        userInput.disabled = true;
-        sendButton.disabled = true;
-        micButton.disabled = true;
-        if (audioOutputToggle) audioOutputToggle.disabled = true; // Also disable audio toggle on critical error
+        if(userInput) userInput.disabled = true;
+        if(sendButton) sendButton.disabled = true;
+        if(micButton) micButton.disabled = true;
+        if (audioOutputToggle) audioOutputToggle.disabled = true;
     }
 }
 
 /**
  * Text Chunking Implementation
  */
-function chunkText(text, chunkSize = 500, overlap = 50) {
+function chunkText(text, chunkSize = 400, overlap = 50) { // Kept chunkSize at 400 as per last version
     const chunks = [];
     let i = 0;
     while (i < text.length) {
@@ -184,14 +200,14 @@ function initializeVoiceInput() {
         micButton.classList.add('listening');
         micButton.textContent = '👂';
         updateStatus('Listening...');
-        sendButton.disabled = true;
+        if(sendButton) sendButton.disabled = true;
         console.log("Voice Input: Recognition started. Listening...");
     };
 
     recognition.onresult = (event) => {
         const last = event.results.length - 1;
         const transcript = event.results[last][0].transcript.trim();
-        userInput.value = transcript;
+        if(userInput) userInput.value = transcript;
         updateStatus(`Recognized: "${transcript}"`);
         console.log("Voice Input: Result received. Transcript:", transcript);
         if (transcript) {
@@ -219,40 +235,44 @@ function initializeVoiceInput() {
         isListening = false;
         micButton.classList.remove('listening');
         micButton.textContent = '🎤';
-        if (chatInitialized && !userInput.disabled) {
-             sendButton.disabled = false;
+        if (chatInitialized && userInput && !userInput.disabled) {
+             if(sendButton) sendButton.disabled = false;
         }
         console.log("Voice Input: Recognition ended.");
     };
 
-    micButton.addEventListener('click', () => {
-        if (!recognition) {
-            console.warn("Voice Input: Mic button clicked but recognition not initialized.");
-            return;
-        }
-
-        if (isListening) {
-            console.log("Voice Input: Mic button clicked while listening. Stopping recognition.");
-            recognition.stop();
-        } else {
-            console.log("Voice Input: Mic button clicked. Starting recognition.");
-            try {
-                if (chatInitialized) userInput.disabled = false;
-                recognition.start();
-            } catch (e) {
-                console.error("Voice Input: Error starting recognition -", e.name, e.message);
-                if (e.name === 'InvalidStateError') {
-                    updateStatus('Please wait before trying voice input again.');
-                } else {
-                    updateStatus('Could not start voice input.');
-                }
-                isListening = false;
-                micButton.classList.remove('listening');
-                micButton.textContent = '🎤';
+    if(micButton) {
+        micButton.addEventListener('click', () => {
+            if (!recognition) {
+                console.warn("Voice Input: Mic button clicked but recognition not initialized.");
+                return;
             }
-        }
-    });
-    console.log("Voice Input: Event listeners set up.");
+
+            if (isListening) {
+                console.log("Voice Input: Mic button clicked while listening. Stopping recognition.");
+                recognition.stop();
+            } else {
+                console.log("Voice Input: Mic button clicked. Starting recognition.");
+                try {
+                    if (chatInitialized && userInput) userInput.disabled = false;
+                    recognition.start();
+                } catch (e) {
+                    console.error("Voice Input: Error starting recognition -", e.name, e.message);
+                    if (e.name === 'InvalidStateError') {
+                        updateStatus('Please wait before trying voice input again.');
+                    } else {
+                        updateStatus('Could not start voice input.');
+                    }
+                    isListening = false;
+                    micButton.classList.remove('listening');
+                    micButton.textContent = '🎤';
+                }
+            }
+        });
+        console.log("Voice Input: Event listeners set up for mic button.");
+    } else {
+        console.warn("Voice Input: Mic button not found in DOM.");
+    }
 }
 
 /**
@@ -267,28 +287,27 @@ function initializeAudioOutput() {
         const populateVoices = () => {
             availableVoices = speechSynthesis.getVoices();
             console.log("Audio Output: Available voices:", availableVoices.length > 0 ? availableVoices.length + " voices found." : "None initially, may load async.");
-            // Log details of a few voices if available
             if (availableVoices.length > 0) {
                 console.log("Audio Output: Example voices:", availableVoices.slice(0, 5).map(v => ({name: v.name, lang: v.lang})));
             }
         };
-        populateVoices(); // Initial call
-        if (speechSynthesis.onvoiceschanged !== undefined) { // Check if event is supported
-            speechSynthesis.onvoiceschanged = populateVoices; // Update when voice list changes
+        populateVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoices;
         }
 
         if (audioOutputToggle) {
-            audioOutputToggle.disabled = false; // Enable the toggle button
+            audioOutputToggle.disabled = false;
             audioOutputToggle.addEventListener('click', () => {
                 isAudioOutputEnabled = !isAudioOutputEnabled;
                 if (isAudioOutputEnabled) {
                     audioOutputToggle.textContent = '🔊 Audio On';
-                    audioOutputToggle.style.backgroundColor = '#28a745'; // Green
+                    audioOutputToggle.style.backgroundColor = '#28a745';
                     console.log("Audio Output: Enabled by user.");
                     speakText("Audio output enabled.");
                 } else {
                     audioOutputToggle.textContent = '🔇 Audio Off';
-                    audioOutputToggle.style.backgroundColor = '#6c757d'; // Grey
+                    audioOutputToggle.style.backgroundColor = '#6c757d';
                     console.log("Audio Output: Disabled by user.");
                     if (speechSynthesis.speaking) {
                         speechSynthesis.cancel();
@@ -312,17 +331,14 @@ function initializeAudioOutput() {
  */
 function speakText(text) {
     if (!isAudioOutputEnabled || !speechSynthesis || !text || text.trim() === "") {
-        // console.log("Audio Output: Skipped speaking (disabled, not supported, or empty text).");
         return;
     }
     console.log("Audio Output: Attempting to speak -", text.substring(0, 50) + "...");
 
     if (speechSynthesis.speaking || speechSynthesis.pending) {
-        speechSynthesis.cancel(); 
+        speechSynthesis.cancel();
         console.log("Audio Output: Cancelled previous/pending speech for new utterance.");
-        // A brief pause after cancel can sometimes help ensure the next utterance starts cleanly
-        // This is especially true on some browsers/platforms.
-        setTimeout(() => proceedWithSpeech(text), 50); 
+        setTimeout(() => proceedWithSpeech(text), 50);
     } else {
         proceedWithSpeech(text);
     }
@@ -330,37 +346,29 @@ function speakText(text) {
 
 function proceedWithSpeech(text) {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US'; // Default language
+    utterance.lang = 'en-US';
 
-    // Attempt to select a suitable voice
-    const preferredVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.default) || 
+    const preferredVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.default) ||
                            availableVoices.find(voice => voice.lang === 'en-US');
     if (preferredVoice) {
         utterance.voice = preferredVoice;
         console.log("Audio Output: Using voice -", preferredVoice.name, `(${preferredVoice.lang})`);
     } else if (availableVoices.length > 0) {
-        utterance.voice = availableVoices[0]; // Fallback to the first available voice
+        utterance.voice = availableVoices[0];
          console.log("Audio Output: Preferred 'en-US' voice not found, using first available voice -", availableVoices[0].name, `(${availableVoices[0].lang})`);
     } else {
         console.log("Audio Output: No voices available, using browser default for lang", utterance.lang);
     }
     
-    utterance.rate = 1.0; 
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
 
-    utterance.onstart = () => {
-        console.log("Audio Output: Speech started for utterance.");
-    };
-    utterance.onend = () => {
-        console.log("Audio Output: Speech ended for utterance.");
-    };
-    utterance.onerror = (event) => {
-        console.error("Audio Output: Speech synthesis error -", event.error, "for text:", event.utterance.text.substring(0, 50) + "...");
-    };
+    utterance.onstart = () => console.log("Audio Output: Speech started for utterance.");
+    utterance.onend = () => console.log("Audio Output: Speech ended for utterance.");
+    utterance.onerror = (event) => console.error("Audio Output: Speech synthesis error -", event.error, "for text:", event.utterance.text.substring(0, 50) + "...");
     
     speechSynthesis.speak(utterance);
 }
-
 
 /**
  * Cosine Similarity Function
@@ -391,9 +399,9 @@ async function handleUserQuery() {
     console.log("Query Handling: Started for query -", query);
 
     addMessageToChatbox('User', query);
-    userInput.value = '';
-    userInput.disabled = true;
-    sendButton.disabled = true;
+    if(userInput) userInput.value = '';
+    if(userInput) userInput.disabled = true;
+    if(sendButton) sendButton.disabled = true;
     if (recognition && !isListening && micButton) micButton.disabled = true;
     updateStatus('Thinking...');
 
@@ -401,7 +409,7 @@ async function handleUserQuery() {
         const queryEmbedding = await generateSingleEmbedding(query);
         console.log("Query Handling: Query embedding generated.");
 
-        const N = 3;
+        const N = 3; // Number of relevant resume chunks
         console.log("Query Handling: Retrieving top", N, "relevant chunks.");
         const similarities = resumeEmbeddings.map((chunkEmb, index) => ({
             index: index,
@@ -417,7 +425,23 @@ async function handleUserQuery() {
         })));
 
         const context = relevantChunks.join('\n---\n');
-        const prompt = `You are a helpful assistant representing Anmol Gupta. Please do not deviate from the the resume and stick to whatever information you are able able to find. Please talk as a 1st person, that is refer yourself as I. Be respectful and professional. Do not use any bad words or give opinion on political or religious matters or anything else that could cause problem. Answer question Based ONLY on the resume information. Do not mix information or context while answering the question the use asks. If the information is not in the context, say "I will not be able to answer that question at the moment."\n\nCONTEXT:\n${context}\n\nQUESTION: ${query}\n\nANSWER:`;
+        // Enhanced Prompt
+        const prompt = `You are Anmol Gupta's helpful AI assistant. Your primary goal is to answer questions based ONLY on the information provided in the 'CONTEXT' section, which is extracted from Anmol Gupta's resume.
+
+Instructions:
+1.  Refer to yourself as "I" (first person).
+2.  Be respectful, professional, and concise.
+3.  Do not deviate from the resume information. Stick strictly to what you find in the CONTEXT.
+4.  Do not mix information from different parts of the context if it's not clearly related to the question.
+5.  Do not give opinions on political or religious matters, or anything that could cause controversy. Do not use any offensive language.
+6.  If the information to answer the question is not present in the CONTEXT, you MUST respond with: "I will not be able to answer that question at the moment." Do not try to guess or use external knowledge.
+
+CONTEXT:
+${context}
+
+QUESTION: ${query}
+
+ANSWER:`;
         console.log("Query Handling: Constructed prompt for LLM. Length:", prompt.length);
 
         let fullResponse = "";
@@ -425,8 +449,11 @@ async function handleUserQuery() {
         const stream = await llmEngine.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
             stream: true,
+            temperature: 0.2,   // Lower temperature for more factual and less random responses
+            max_tokens: 250,    // Max tokens for the response to control length and prevent rambling
+                                // (WebLLM might use max_gen_len for some models, adjust if needed based on WebLLM docs for Phi-3)
         });
-        console.log("Query Handling: LLM stream initiated.");
+        console.log("Query Handling: LLM stream initiated with temperature: 0.2, max_tokens: 250.");
 
         let firstChunk = true;
         let assistantMessageDivSpan = null;
@@ -440,7 +467,7 @@ async function handleUserQuery() {
                     firstChunk = false;
                 } else if (assistantMessageDivSpan) {
                     assistantMessageDivSpan.innerHTML += deltaContent.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
-                    chatbox.scrollTop = chatbox.scrollHeight;
+                    if(chatbox) chatbox.scrollTop = chatbox.scrollHeight;
                 }
             }
         }
@@ -451,28 +478,27 @@ async function handleUserQuery() {
              responseToSpeak = "I have no relevant information to share.";
              addMessageToChatbox('Assistant', responseToSpeak);
              console.log("Query Handling: LLM provided no relevant information or an empty response.");
-        } else if (firstChunk && fullResponse !== "") { 
+        } else if (firstChunk && fullResponse !== "") {
             responseToSpeak = fullResponse;
             addMessageToChatbox('Assistant', responseToSpeak);
             console.log("Query Handling: LLM response added (non-streamed fallback).");
         } else if (!firstChunk && fullResponse !== "") {
             responseToSpeak = fullResponse;
-            // Message already added via streaming
             console.log("Query Handling: Streamed response complete.");
         }
-        speakText(responseToSpeak); // Speak the final determined response
+        speakText(responseToSpeak);
 
     } catch (error) {
         console.error('Query Handling: Error -', error.message, error.stack);
         const errorReply = `Sorry, I am facing a problem. Please try again later.`;
         addMessageToChatbox('Assistant', errorReply);
-        speakText(errorReply); // Speak the generic error reply
+        speakText(errorReply);
     } finally {
-        userInput.disabled = false;
-        sendButton.disabled = false;
-         if (recognition && micButton) micButton.disabled = false;
+        if(userInput) userInput.disabled = false;
+        if(sendButton) sendButton.disabled = false;
+        if (recognition && micButton) micButton.disabled = false;
         updateStatus('I am ready. Ask me anything about my professional experience and I will do my best to answer your questions!');
-        userInput.focus();
+        if(userInput) userInput.focus();
         console.log("Query Handling: Finished. UI re-enabled.");
     }
 }
@@ -482,13 +508,6 @@ function updateStatus(message) {
     if(statusDiv) statusDiv.textContent = message;
 }
 
-/**
- * Adds a message to the chatbox with appropriate styling and wrapper for alignment.
- * @param {string} sender - 'User' or 'Assistant'
- * @param {string} message - The message content
- * @param {boolean} returnSpanForStreaming - If true, returns the inner span for live updates
- * @returns {HTMLSpanElement | null} - The span element if returnSpanForStreaming is true, otherwise null
- */
 function addMessageToChatbox(sender, message, returnSpanForStreaming = false) {
     if (!chatbox) {
         console.error("addMessageToChatbox: chatbox element not found!");
@@ -497,7 +516,6 @@ function addMessageToChatbox(sender, message, returnSpanForStreaming = false) {
 
     const messageWrapper = document.createElement('div');
     messageWrapper.classList.add('message-wrapper');
-
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', sender.toLowerCase() + '-message');
 
@@ -530,7 +548,7 @@ if (sendButton) {
 }
 if (userInput) {
     userInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter' && !sendButton.disabled) {
+        if (event.key === 'Enter' && sendButton && !sendButton.disabled) {
             handleUserQuery();
         }
     });
